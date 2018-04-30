@@ -220,7 +220,7 @@ game-name = "{0}"
 
 [src]
 iso = "game.iso" # Provide the path of the game's ISO
-link = ["target/powerpc-unknown-linux-gnu/release/lib{0}.a"]
+link = ["target/powerpc-unknown-linux-gnu/release/lib{1}.a"]
 patch = "src/patch.asm"
 
 [build]
@@ -231,7 +231,8 @@ iso = "target/{0}.iso"
 entries = ["init"] # Enter the exported function names here
 base = "0x8040_1000" # Enter the start address of the Rom Hack's code here
 "#,
-        name
+        name,
+        name.replace('-', "_"),
     ).unwrap();
 
     let mut file = File::create(format!("{}/src/lib.rs", name)).unwrap();
