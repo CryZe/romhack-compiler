@@ -1,24 +1,18 @@
 use config::Config;
+use demangle::demangle as demangle_tww;
 use linker::{LinkedSection, SectionKind};
-use regex::Regex;
+use regex::{Captures, Regex};
 use rustc_demangle::demangle as demangle_rust;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufWriter, prelude::*};
+use std::io::{prelude::*, BufWriter};
 use std::str;
-use demangle::demangle as demangle_tww;
 
-const FRAMEWORK_MAP: &str = include_str!("../resources/framework.map");
-const HEADER: &str = r".text section layout
-  Starting        Virtual
-  address  Size   address
-  -----------------------";
-
-pub fn create(config: &Config, sections: &[LinkedSection]) {
+pub fn create(config: &Config, original: Option<&[u8]>, sections: &[LinkedSection]) {
     let mut file =
         BufWriter::new(File::create(&config.build.map).expect("Couldn't create the framework map"));
 
-    writeln!(file, "{}", HEADER).unwrap();
+    writeln!(file, ".text section layout").unwrap();
 
     for section in sections {
         let mut section_name_buf;
@@ -46,7 +40,25 @@ pub fn create(config: &Config, sections: &[LinkedSection]) {
         ).unwrap();
     }
 
-    write!(file, "{}", FRAMEWORK_MAP).unwrap();
+    if let Some(original) = original {
+        let regex = Regex::new(r"(\s{2}\d\s)(.*)(\s{2}.*)").unwrap();
+
+        writeln!(file).unwrap();
+        writeln!(file).unwrap();
+
+        for line in str::from_utf8(original).unwrap().lines() {
+            let line = regex.replace(&line, |c: &Captures| {
+                let demangled = demangle_tww(&c[2]);
+                // if let Err(ref e) = demangled {
+                //     println!("Mangled: {}", &c[2]);
+                //     println!("Error: {}", e);
+                // }
+                format!("{}{}{}", &c[1], demangled.unwrap_or(c[2].into()), &c[3])
+            });
+
+            writeln!(file, "{}", line).unwrap();
+        }
+    }
 }
 
 pub fn parse(buf: &[u8]) -> HashMap<String, u32> {
@@ -58,7 +70,12 @@ pub fn parse(buf: &[u8]) -> HashMap<String, u32> {
             let name = captures.get(2).unwrap().as_str();
             if name != ".text" {
                 let address = u32::from_str_radix(captures.get(1).unwrap().as_str(), 16).unwrap();
-                symbols.insert(demangle_tww(name).map(|n| n.into_owned()).unwrap_or_else(|_| name.to_owned()), address);
+                symbols.insert(
+                    demangle_tww(name)
+                        .map(|n| n.into_owned())
+                        .unwrap_or_else(|_| name.to_owned()),
+                    address,
+                );
             }
         }
     }

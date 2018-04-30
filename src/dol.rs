@@ -110,7 +110,7 @@ impl DolFile {
         self.data_sections.extend(other.data_sections);
     }
 
-    pub fn to_bytes(&self) -> Box<[u8]> {
+    pub fn to_bytes(&self) -> Vec<u8> {
         let mut header = DolHeader::new();
         header.bss_address = self.bss_address;
         header.bss_size = self.bss_size;
@@ -145,7 +145,7 @@ impl DolFile {
         let mut bytes = header.to_bytes();
         bytes.extend(data);
 
-        bytes.into_boxed_slice()
+        bytes
     }
 
     pub fn patch(&mut self, instructions: &[Instruction]) {

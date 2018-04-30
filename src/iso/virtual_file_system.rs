@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 #[derive(Debug)]
 pub enum Node<'a> {
     Directory(Box<Directory<'a>>),
@@ -87,8 +89,7 @@ impl<'a> Directory<'a> {
                     .filter_map(|c| c.as_directory())
                     .find(|d| d.name == segment)?;
             } else {
-                return dir
-                    .children
+                return dir.children
                     .iter()
                     .filter_map(|c| c.as_file())
                     .find(|f| f.name == segment);
@@ -96,17 +97,55 @@ impl<'a> Directory<'a> {
         }
         None
     }
+
+    // TODO NLL This is really bad
+    pub fn resolve_and_create_path(&mut self, path: &'a str) -> &mut File<'a> {
+        let mut splits = path.splitn(2, '/');
+        if let (Some(folder), Some(sub_path)) = (splits.next(), splits.next()) {
+            if !self.children
+                .iter_mut()
+                .filter_map(|c| c.as_directory_mut())
+                .any(|d| d.name == folder)
+            {
+                self.children
+                    .push(Node::Directory(Box::new(Directory::new(folder))));
+            }
+            self.children
+                .iter_mut()
+                .filter_map(|c| c.as_directory_mut())
+                .find(|d| d.name == folder)
+                .unwrap()
+                .resolve_and_create_path(sub_path)
+        } else {
+            if !self.children
+                .iter_mut()
+                .filter_map(|c| c.as_file_mut())
+                .any(|f| f.name == path)
+            {
+                self.children.push(Node::File(File::new(path, Vec::new())));
+            }
+            self.children
+                .iter_mut()
+                .filter_map(|c| c.as_file_mut())
+                .find(|f| f.name == path)
+                .unwrap()
+        }
+    }
 }
 
 pub struct File<'a> {
     pub id: u16,
     pub name: &'a str,
-    pub data: &'a [u8],
+    pub data: Cow<'a, [u8]>,
 }
 
 impl<'a> File<'a> {
-    pub fn new(name: &'a str, data: &'a [u8]) -> File<'a> {
-        Self { id: 0, name, data }
+    pub fn new<A: Into<Cow<'a, [u8]>>>(name: &'a str, data: A) -> File<'a> {
+        Self {
+            id: 0,
+            name,
+            data: data.into(),
+        }
     }
 }
 

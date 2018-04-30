@@ -29,7 +29,7 @@ use config::Config;
 use dol::DolFile;
 use opt::Opt;
 use std::collections::HashMap;
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{prelude::*, BufWriter};
 use std::process::Command;
 use structopt::StructOpt;
@@ -78,8 +78,20 @@ fn build() {
     let buf = iso::reader::load_iso_buf(&config.src.iso)
         .unwrap_or_else(|_| panic!("Couldn't find \"{}\".", config.src.iso.display()));
 
-    let (new_dol_data, new_banner_data);
     let mut iso = iso::reader::load_iso(&buf);
+
+    eprintln!("Replacing files...");
+
+    for (iso_path, actual_path) in &config.files {
+        iso.resolve_and_create_path(iso_path).data = fs::read(actual_path)
+            .unwrap_or_else(|_| {
+                panic!(
+                    "Couldn't read the file \"{}\" to store it in the ISO.",
+                    actual_path.display()
+                )
+            })
+            .into();
+    }
 
     let mut original_symbols = HashMap::new();
     if let Some(framework_map) = config.src.map.as_ref().and_then(|m| iso.resolve_path(m)) {
@@ -93,16 +105,12 @@ fn build() {
 
     let mut libs_to_link = Vec::with_capacity(config.src.link.len() + 1);
     for lib_path in &config.src.link {
-        let mut file_buf = Vec::new();
-        File::open(&config.src.link[0])
-            .unwrap_or_else(|_| {
-                panic!(
-                    "Couldn't find \"{}\". Did you build the project correctly?",
-                    lib_path.display()
-                )
-            })
-            .read_to_end(&mut file_buf)
-            .unwrap();
+        let mut file_buf = fs::read(&config.src.link[0]).unwrap_or_else(|_| {
+            panic!(
+                "Couldn't load \"{}\". Did you build the project correctly?",
+                lib_path.display()
+            )
+        });
         libs_to_link.push(file_buf);
     }
     libs_to_link.push(linker::BASIC_LIB.to_owned());
@@ -116,7 +124,17 @@ fn build() {
 
     eprintln!("Creating map...");
 
-    framework_map::create(&config, &linked.sections);
+    // TODO NLL bind framework_map to local variable
+    framework_map::create(
+        &config,
+        config
+            .src
+            .map
+            .as_ref()
+            .and_then(|m| iso.resolve_path(m))
+            .map(|f| &*f.data),
+        &linked.sections,
+    );
 
     let mut instructions = Vec::new();
     if let Some(patch) = config.src.patch.take() {
@@ -138,11 +156,9 @@ fn build() {
         eprintln!("Patching game...");
 
         let main_dol = iso.main_dol_mut().expect("Dol file not found");
-        let dol_data: Vec<u8> = main_dol.data.to_owned();
 
-        let original = DolFile::parse(&dol_data);
-        new_dol_data = patch_game(original, linked.dol, &instructions);
-        main_dol.data = &new_dol_data;
+        let original = DolFile::parse(&main_dol.data);
+        main_dol.data = patch_game(original, linked.dol, &instructions).into();
     }
     {
         eprintln!("Patching banner...");
@@ -172,8 +188,7 @@ fn build() {
                     .to_rgba();
                 banner.image.copy_from_slice(&image);
             }
-            new_banner_data = banner.to_bytes(is_japanese);
-            banner_file.data = &new_banner_data;
+            banner_file.data = banner.to_bytes(is_japanese).to_vec().into();
         } else {
             eprintln!("No banner to patch.");
         }
@@ -281,7 +296,7 @@ fn patch_game(
     mut original: DolFile,
     intermediate: DolFile,
     instructions: &[Instruction],
-) -> Box<[u8]> {
+) -> Vec<u8> {
     original.append(intermediate);
     original.patch(instructions);
 

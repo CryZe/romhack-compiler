@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Deserialize)]
@@ -7,6 +8,8 @@ pub struct Config {
     pub link: Link,
     #[serde(default)]
     pub info: Info,
+    #[serde(default)]
+    pub files: HashMap<String, PathBuf>,
 }
 
 #[derive(Deserialize)]
