@@ -222,6 +222,12 @@ game-name = "{0}"
 iso = "game.iso" # Provide the path of the game's ISO
 link = ["target/powerpc-unknown-linux-gnu/release/lib{1}.a"]
 patch = "src/patch.asm"
+# Optionally specify the game's symbol map
+# map = "maps/framework.map"
+
+[files]
+# You may replace or add new files to the game here
+# "path/to/file/in/iso" = "path/to/file/on/harddrive"
 
 [build]
 map = "target/framework.map"
