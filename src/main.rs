@@ -129,7 +129,7 @@ fn build() -> Result<(), Error> {
         base_address.value() as u32,
         config.link.entries.clone(),
         &original_symbols,
-    );
+    ).context("Couldn't link the Rom Hack")?;
 
     key_val_print(None, "Creating", "symbol map");
 

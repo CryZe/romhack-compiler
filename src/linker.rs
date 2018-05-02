@@ -1,5 +1,6 @@
 use byteorder::{ByteOrder, BE};
 use dol::{DolFile, Section};
+use failure::Error;
 use goblin::archive::{Archive, Member};
 use goblin::elf::{section_header, sym, Elf, Reloc};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -125,7 +126,7 @@ fn traverse_global<'a>(
     parsed_elfs: &mut BTreeMap<(usize, &'a str), Elf<'a>>,
     visited_sections: &mut HashSet<SectionInfo<'a>>,
     prelinked_symbols: &HashMap<String, u32>,
-) {
+) -> Result<(), Error> {
     let mut archive_symbols_to_visit = Vec::new();
 
     while let Some(symbol) = global_symbols_to_visit.pop() {
@@ -144,9 +145,11 @@ fn traverse_global<'a>(
                 visited_sections,
             );
         } else if !prelinked_symbols.contains_key(&symbol) {
-            panic!("Unresolved symbol {}", symbol)
+            bail!("Unresolved symbol `{}`", symbol)
         }
     }
+
+    Ok(())
 }
 
 fn traverse_archive<'a>(
@@ -471,7 +474,7 @@ pub fn link<'a>(
     base_address: u32,
     mut global_symbols_to_visit: Vec<String>,
     prelinked_symbols: &HashMap<String, u32>,
-) -> Linked<'a> {
+) -> Result<Linked<'a>, Error> {
     // TODO Handle "weak" and "merge" symbols
 
     let mut visited_sections = HashSet::new();
@@ -489,7 +492,7 @@ pub fn link<'a>(
         &mut parsed_elfs,
         &mut visited_sections,
         prelinked_symbols,
-    );
+    )?;
 
     let layout = create_layout(base_address, visited_sections, &parsed_elfs);
 
@@ -502,24 +505,20 @@ pub fn link<'a>(
     );
 
     let dol = DolFile {
-        text_sections: vec![
-            Section {
-                address: base_address,
-                data: text_section.into_boxed_slice(),
-            },
-        ],
-        data_sections: vec![
-            Section {
-                address: layout.data_section_address.unwrap_or(base_address),
-                data: data_section.into_boxed_slice(),
-            },
-        ],
+        text_sections: vec![Section {
+            address: base_address,
+            data: text_section.into_boxed_slice(),
+        }],
+        data_sections: vec![Section {
+            address: layout.data_section_address.unwrap_or(base_address),
+            data: data_section.into_boxed_slice(),
+        }],
         bss_address: 0,
         bss_size: 0,
         entry_point: 0,
     };
 
-    Linked {
+    Ok(Linked {
         dol,
         symbol_table: layout.symbol_table,
         sections: layout
@@ -551,5 +550,5 @@ pub fn link<'a>(
                 }
             })
             .collect(),
-    }
+    })
 }
