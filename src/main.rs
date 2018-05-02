@@ -9,7 +9,7 @@ extern crate serde_derive;
 extern crate serde;
 #[macro_use]
 extern crate structopt;
-extern crate syn;
+extern crate standalone_syn as syn;
 extern crate toml;
 
 mod assembler;
