@@ -1,12 +1,13 @@
 use super::virtual_file_system::{Directory, File, Node};
-use super::{FstEntry, FstNodeType, consts::*};
+use super::{consts::*, FstEntry, FstNodeType};
 use byteorder::{ByteOrder, BE};
+use failure::{Error, ResultExt};
 use std::fs;
-use std::io::{Read, Result};
+use std::io::{Read, Result as IOResult};
 use std::path::Path;
 use std::str;
 
-pub fn load_iso_buf<P: AsRef<Path>>(path: P) -> Result<Vec<u8>> {
+pub fn load_iso_buf<P: AsRef<Path>>(path: P) -> IOResult<Vec<u8>> {
     let mut file = fs::File::open(path)?;
     let len = file.metadata()?.len();
     let mut buf = Vec::with_capacity(len as usize + 1);
@@ -14,7 +15,7 @@ pub fn load_iso_buf<P: AsRef<Path>>(path: P) -> Result<Vec<u8>> {
     Ok(buf)
 }
 
-pub fn load_iso<'a>(buf: &'a [u8]) -> Directory<'a> {
+pub fn load_iso<'a>(buf: &'a [u8]) -> Result<Directory<'a>, Error> {
     let fst_offset = BE::read_u32(&buf[OFFSET_FST_OFFSET..]) as usize;
     let mut pos = fst_offset;
     let num_entries = BE::read_u32(&buf[fst_offset + 8..]) as usize;
@@ -37,7 +38,8 @@ pub fn load_iso<'a>(buf: &'a [u8]) -> Directory<'a> {
         while buf[end] != 0 {
             end += 1;
         }
-        let relative_file_name = str::from_utf8(&buf[pos..end]).unwrap();
+        let relative_file_name =
+            str::from_utf8(&buf[pos..end]).context("Couldn't parse the relative file name")?;
 
         pos = cur_pos + 2;
         let file_offset_parent_dir = BE::read_u32(&buf[pos..]) as usize;
@@ -99,7 +101,7 @@ pub fn load_iso<'a>(buf: &'a [u8]) -> Directory<'a> {
         count += 1;
     }
 
-    root_dir
+    Ok(root_dir)
 }
 
 fn get_dir_structure_recursive<'a>(

@@ -1,9 +1,10 @@
 use super::virtual_file_system::{Directory, Node};
-use super::{FstEntry, FstNodeType, consts::*};
+use super::{consts::*, FstEntry, FstNodeType};
 use byteorder::{WriteBytesExt, BE};
-use std::io::{Result, Seek, SeekFrom, Write};
+use failure::{err_msg, Error};
+use std::io::{Seek, SeekFrom, Write};
 
-pub fn write_iso<W>(mut writer: W, root: &Directory) -> Result<()>
+pub fn write_iso<W>(mut writer: W, root: &Directory) -> Result<(), Error>
 where
     W: Write + Seek,
 {
@@ -12,14 +13,14 @@ where
         .enumerate()
         .filter_map(|(i, c)| c.as_directory().map(|d| (i, d)))
         .find(|&(_, d)| d.name == "&&systemdata")
-        .unwrap();
+        .ok_or_else(|| err_msg("The virtual file system contains no &&systemdata folder"))?;
 
     let header = sys_dir
         .children
         .iter()
         .filter_map(|c| c.as_file())
         .find(|f| f.name == "iso.hdr")
-        .unwrap();
+        .ok_or_else(|| err_msg("The &&systemdata folder contains no iso.hdr"))?;
     writer.write_all(&header.data)?;
 
     let apploader = sys_dir
@@ -27,7 +28,7 @@ where
         .iter()
         .filter_map(|c| c.as_file())
         .find(|f| f.name == "AppLoader.ldr")
-        .unwrap();
+        .ok_or_else(|| err_msg("The &&systemdata folder contains no AppLoader.ldr"))?;
     writer.write_all(&apploader.data)?;
 
     let dol_offset_without_padding = header.data.len() + apploader.data.len();
@@ -43,7 +44,7 @@ where
         .iter()
         .filter_map(|c| c.as_file())
         .find(|f| f.name.ends_with(".dol"))
-        .unwrap();
+        .ok_or_else(|| err_msg("The &&systemdata folder contains no dol file"))?;
     writer.write_all(&dol.data)?;
 
     let fst_list_offset_without_padding = dol_offset + dol.data.len();
@@ -105,7 +106,9 @@ where
     writer.write_u32::<BE>(dol_offset as u32)?;
     writer.write_u32::<BE>(fst_list_offset as u32)?;
     writer.write_u32::<BE>(fst_len as u32)?;
-    writer.write_u32::<BE>(fst_len as u32)
+    writer.write_u32::<BE>(fst_len as u32)?;
+
+    Ok(())
 }
 
 fn calculate_fst_len(mut cur_value: usize, node: &Node) -> usize {
@@ -130,7 +133,7 @@ fn do_output_prep<W>(
     fst_name_bank: &mut Vec<u8>,
     writer: &mut W,
     mut cur_parent_dir_index: usize,
-) -> Result<()>
+) -> Result<(), Error>
 where
     W: Write + Seek,
 {

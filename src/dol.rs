@@ -1,7 +1,7 @@
 use assembler::Instruction;
 use byteorder::{ByteOrder, BE};
-use std::fmt;
-use std::fmt::Debug;
+use failure::Error;
+use std::fmt::{self, Debug};
 
 pub struct Section {
     pub address: u32,
@@ -148,7 +148,7 @@ impl DolFile {
         bytes
     }
 
-    pub fn patch(&mut self, instructions: &[Instruction]) {
+    pub fn patch(&mut self, instructions: &[Instruction]) -> Result<(), Error> {
         for instruction in instructions {
             let section = self.text_sections
                 .iter_mut()
@@ -162,9 +162,11 @@ impl DolFile {
                 let index = (instruction.address - section.address) as usize;
                 write_u32(&mut section.data[index..], instruction.data);
             } else {
-                panic!("Patch couldn't be applied.");
+                bail!("Patch couldn't be applied.");
             }
         }
+
+        Ok(())
     }
 }
 

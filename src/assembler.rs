@@ -1,3 +1,4 @@
+use failure::{Error, ResultExt};
 use std::collections::BTreeMap;
 use syn::{self, synom::ParseError};
 
@@ -19,7 +20,7 @@ impl<'a> Assembler<'a> {
         }
     }
 
-    pub fn assemble_all_lines(&mut self, lines: &[&str]) -> Vec<Instruction> {
+    pub fn assemble_all_lines(&mut self, lines: &[&str]) -> Result<Vec<Instruction>, Error> {
         let mut instructions = Vec::new();
 
         let filtered_lines = lines
@@ -30,48 +31,52 @@ impl<'a> Assembler<'a> {
         for line in filtered_lines {
             if line.ends_with(':') {
                 self.program_counter =
-                    parse_program_counter_label(line).expect("Couldn't parse Address Label");
+                    parse_program_counter_label(line).context("Couldn't parse address label")?;
             } else {
-                let instruction = self.parse_instruction(line);
+                let instruction = self.parse_instruction(line)?;
                 instructions.push(instruction);
                 self.program_counter += 4;
             }
         }
 
-        instructions
+        Ok(instructions)
     }
 
-    fn parse_instruction(&self, line: &str) -> Instruction {
+    fn parse_instruction(&self, line: &str) -> Result<Instruction, Error> {
         let data;
 
         if line.starts_with("bl ") {
             let operand = &line[3..];
-            let destination = self.resolve_symbol(operand);
+            let destination = self.resolve_symbol(operand)?;
             data = build_branch_instruction(self.program_counter, destination, false, true);
         } else if line.starts_with("b ") {
             let operand = &line[2..];
-            let destination = self.resolve_symbol(operand);
+            let destination = self.resolve_symbol(operand)?;
             data = build_branch_instruction(self.program_counter, destination, false, false);
         } else if line.starts_with("u32 ") {
-            data = parse_u32_literal(&line[4..]).unwrap();
+            data = parse_u32_literal(&line[4..]).context("Couldn't parse the u32 literal")?;
         } else if line == "nop" {
             data = 0x60000000;
         } else {
-            panic!("Unknown instruction: {}", line);
+            bail!("Unknown instruction: {}", line);
         }
 
-        Instruction {
+        Ok(Instruction {
             address: self.program_counter,
             data: data,
-        }
+        })
     }
 
-    fn resolve_symbol(&self, symbol: &str) -> u32 {
-        parse_u32_literal(symbol).unwrap_or_else(|_| {
-            *self.symbol_table
-                .get(symbol)
-                .unwrap_or_else(|| panic!("The symbol \"{}\" wasn't found", symbol))
-        })
+    fn resolve_symbol(&self, symbol: &str) -> Result<u32, Error> {
+        if let Ok(address) = parse_u32_literal(symbol) {
+            return Ok(address);
+        }
+
+        if let Some(&symbol) = self.symbol_table.get(symbol) {
+            return Ok(symbol);
+        }
+
+        bail!(format!("The symbol \"{}\" wasn't found", symbol))
     }
 }
 

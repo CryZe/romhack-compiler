@@ -1,5 +1,5 @@
-use std::fmt::{self, Display};
 use std::borrow::Cow;
+use std::fmt::{self, Display};
 
 type IsConst = bool;
 
@@ -25,35 +25,35 @@ impl<'a> Display for DisplayLeft<'a> {
             Path(is_const, ref p) => {
                 for (i, element) in p.iter().enumerate() {
                     if i != 0 {
-                        try!(write!(f, "::"));
+                        write!(f, "::")?;
                     }
-                    try!(write!(f, "{}", element));
+                    write!(f, "{}", element)?;
                 }
                 if is_const {
-                    try!(write!(f, " const"));
+                    write!(f, " const")?;
                 }
                 Ok(())
             }
             Normal(is_const, t) => {
-                try!(write!(f, "{}", t));
+                write!(f, "{}", t)?;
                 if is_const {
-                    try!(write!(f, " const"));
+                    write!(f, " const")?;
                 }
                 Ok(())
             }
             Function(_, ref r, _) => write!(f, "{} (", DisplayLeft(r)),
             Array(_, ref t) => write!(f, "{} (", DisplayLeft(t)),
             Pointer(is_const, ref t) => {
-                try!(write!(f, "{}*", DisplayLeft(t)));
+                write!(f, "{}*", DisplayLeft(t))?;
                 if is_const {
-                    try!(write!(f, " const"));
+                    write!(f, " const")?;
                 }
                 Ok(())
             }
             Reference(is_const, ref t) => {
-                try!(write!(f, "{}&", DisplayLeft(t)));
+                write!(f, "{}&", DisplayLeft(t))?;
                 if is_const {
-                    try!(write!(f, " const"));
+                    write!(f, " const")?;
                 }
                 Ok(())
             }
@@ -69,13 +69,13 @@ impl<'a> Display for DisplayRight<'a> {
         match *typ {
             Path(_, _) | Normal(_, _) | VarArgs => Ok(()),
             Function(is_const, ref r, ref p) => {
-                try!(write!(f, ")("));
+                write!(f, ")(")?;
 
                 for (i, param) in p.iter().enumerate() {
                     if i != 0 {
-                        try!(write!(f, ", "));
+                        write!(f, ", ")?;
                     }
-                    try!(write!(f, "{}", param));
+                    write!(f, "{}", param)?;
                 }
 
                 if is_const {
@@ -97,13 +97,14 @@ impl<'a> Display for Type<'a> {
     }
 }
 
-
 fn parse_count(text: &str) -> Result<(usize, &str), Cow<'static, str>> {
     let mut text = text;
 
-    let count = text.chars().take_while(|c| c.is_digit(10)).collect::<String>();
+    let count = text.chars()
+        .take_while(|c| c.is_digit(10))
+        .collect::<String>();
     text = &text[count.len()..];
-    let count = try!(count.parse().map_err(|_| "Couldn't parse count"));
+    let count = count.parse().map_err(|_| "Couldn't parse count")?;
 
     Ok((count, text))
 }
@@ -127,7 +128,7 @@ fn parse_type(text: &str) -> Result<(Option<Type>, &str), Cow<'static, str>> {
         Some('b') => Type::Normal(false, "bool"),
         Some('e') => Type::VarArgs,
         Some('0'...'9') => {
-            let (count, remaining) = try!(parse_count(original_text));
+            let (count, remaining) = parse_count(original_text)?;
             text = remaining;
 
             let type_name = &text[..count];
@@ -139,7 +140,7 @@ fn parse_type(text: &str) -> Result<(Option<Type>, &str), Cow<'static, str>> {
             let mut parameters = Vec::new();
 
             while !text.starts_with('_') {
-                let (typ, remaining) = try!(parse_type(text));
+                let (typ, remaining) = parse_type(text)?;
                 text = remaining;
                 if let Some(typ) = typ {
                     parameters.push(typ);
@@ -150,7 +151,7 @@ fn parse_type(text: &str) -> Result<(Option<Type>, &str), Cow<'static, str>> {
 
             let typ = if !text.is_empty() {
                 text = &text[1..];
-                let (typ, remaining) = try!(parse_type(text));
+                let (typ, remaining) = parse_type(text)?;
                 text = remaining;
 
                 typ
@@ -158,44 +159,49 @@ fn parse_type(text: &str) -> Result<(Option<Type>, &str), Cow<'static, str>> {
                 None
             };
 
-            Type::Function(false, Box::new(typ.unwrap_or_else(|| Type::Normal(false, "void"))),
-                           parameters)
+            Type::Function(
+                false,
+                Box::new(typ.unwrap_or_else(|| Type::Normal(false, "void"))),
+                parameters,
+            )
         }
         Some('A') => {
-            let (count, remaining) = try!(parse_count(text));
+            let (count, remaining) = parse_count(text)?;
             text = remaining;
 
             text = &text[1..];
 
-            let (typ, remaining) = try!(parse_type(text));
+            let (typ, remaining) = parse_type(text)?;
             text = remaining;
 
-            Type::Array(count,
-                        Box::new(try!(typ.ok_or("Expected Type of Array Elements"))))
+            Type::Array(
+                count,
+                Box::new(typ.ok_or("Expected Type of Array Elements")?),
+            )
         }
         Some('P') => {
-            let (typ, remaining) = try!(parse_type(text));
+            let (typ, remaining) = parse_type(text)?;
             text = remaining;
 
-            Type::Pointer(false, Box::new(try!(typ.ok_or("Expected Type of Pointer"))))
+            Type::Pointer(false, Box::new(typ.ok_or("Expected Type of Pointer")?))
         }
         Some('R') => {
-            let (typ, remaining) = try!(parse_type(text));
+            let (typ, remaining) = parse_type(text)?;
             text = remaining;
 
-            Type::Reference(false, Box::new(try!(typ.ok_or("Expected Type of Reference"))))
+            Type::Reference(false, Box::new(typ.ok_or("Expected Type of Reference")?))
         }
         Some('Q') => {
             let skip_index = text.char_indices().nth(1).unwrap().0;
-            let (count, _) = try!(parse_count(&text[..skip_index]));
+            let (count, _) = parse_count(&text[..skip_index])?;
             text = &text[skip_index..];
 
             let mut elements = Vec::with_capacity(count);
 
             for _ in 0..count {
-                let (typ, remaining) = try!(parse_type(text));
+                let (typ, remaining) = parse_type(text)?;
                 text = remaining;
-                let typ = try!(typ.ok_or("Expected Path Element"));
+                let typ = typ.ok_or("Expected Path Element")?;
 
                 if let Type::Normal(_, element) = typ {
                     elements.push(element);
@@ -208,7 +214,7 @@ fn parse_type(text: &str) -> Result<(Option<Type>, &str), Cow<'static, str>> {
         }
         Some('U') => {
             let first_char = text.chars().next();
-            let first_char = try!(first_char.ok_or("Expected some unsigned type"));
+            let first_char = first_char.ok_or("Expected some unsigned type")?;
             text = &text[1..];
 
             match first_char {
@@ -220,9 +226,9 @@ fn parse_type(text: &str) -> Result<(Option<Type>, &str), Cow<'static, str>> {
             }
         }
         Some('C') => {
-            let (typ, remaining) = try!(parse_type(text));
+            let (typ, remaining) = parse_type(text)?;
             text = remaining;
-            let typ = try!(typ.ok_or("Expected Constant Type"));
+            let typ = typ.ok_or("Expected Constant Type")?;
 
             match typ {
                 Type::Normal(_, name) => Type::Normal(true, name),
@@ -243,7 +249,10 @@ fn parse_type(text: &str) -> Result<(Option<Type>, &str), Cow<'static, str>> {
 
 fn base_name(function: &str) -> (&str, Option<&str>) {
     if let Some(underscore_index) = function.rfind("__") {
-        (&function[..underscore_index], Some(&function[underscore_index + 2..]))
+        (
+            &function[..underscore_index],
+            Some(&function[underscore_index + 2..]),
+        )
     } else {
         (function, None)
     }
@@ -275,10 +284,10 @@ pub fn demangle(function: &str) -> Result<Cow<str>, Cow<'static, str>> {
 
             Ok(())
         } else {
-            Err(format!("Unexpected Type {} for signature {}, expected Function",
-                        typ,
-                        signature)
-                .into())
+            Err(format!(
+                "Unexpected Type {} for signature {}, expected Function",
+                typ, signature
+            ).into())
         }
     }
 
@@ -303,10 +312,10 @@ pub fn demangle(function: &str) -> Result<Cow<str>, Cow<'static, str>> {
     if let Some(mut text) = path {
         let mut result = String::new();
 
-        let (typ, remaining) = try!(parse_type(text));
+        let (typ, remaining) = parse_type(text)?;
         text = remaining;
 
-        let typ = try!(typ.ok_or("Expected path"));
+        let typ = typ.ok_or("Expected path")?;
 
         match typ {
             Type::Path(_, path) => {
@@ -318,23 +327,23 @@ pub fn demangle(function: &str) -> Result<Cow<str>, Cow<'static, str>> {
                 }
                 extend_by_base_name(&mut result, base_name);
 
-                let (typ, _) = try!(parse_type(text));
+                let (typ, _) = parse_type(text)?;
                 if let Some(typ) = typ {
-                    try!(extend_by_params(&mut result, typ));
+                    extend_by_params(&mut result, typ)?;
                 }
             }
             Type::Normal(_, name) => {
                 result.push_str(name);
                 extend_by_base_name(&mut result, base_name);
 
-                let (typ, _) = try!(parse_type(text));
+                let (typ, _) = parse_type(text)?;
                 if let Some(typ) = typ {
-                    try!(extend_by_params(&mut result, typ));
+                    extend_by_params(&mut result, typ)?;
                 }
             }
             t => {
                 extend_by_base_name(&mut result, base_name);
-                try!(extend_by_params(&mut result, t));
+                extend_by_params(&mut result, t)?;
             }
         }
 

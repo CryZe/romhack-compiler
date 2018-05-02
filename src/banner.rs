@@ -1,6 +1,7 @@
 //! Based on http://www.gc-forever.com/yagcd/chap14.html#sec14.1
 
 use encoding_rs::{UTF_8, SHIFT_JIS};
+use failure::{err_msg, Error};
 
 const COLUMNS: usize = 24;
 const ROWS: usize = 8;
@@ -63,14 +64,14 @@ fn rgba_to_a1rgb5(v: &[u8]) -> [u8; 2] {
     [x, y]
 }
 
-fn read_string(is_japanese: bool, bytes: &[u8]) -> String {
+fn read_string(is_japanese: bool, bytes: &[u8]) -> Result<String, Error> {
     let end = bytes.iter().position(|&x| x == 0).unwrap_or(bytes.len());
     let bytes = &bytes[..end];
     let encoding = if is_japanese { SHIFT_JIS } else { UTF_8 };
-    encoding
+    Ok(encoding
         .decode_without_bom_handling_and_without_replacement(bytes)
-        .expect("Couldn't parse string")
-        .into_owned()
+        .ok_or_else(|| err_msg("Couldn't parse string"))?
+        .into_owned())
 }
 
 fn write_string(is_japanese: bool, text: &str, bytes: &mut [u8]) {
@@ -79,7 +80,7 @@ fn write_string(is_japanese: bool, text: &str, bytes: &mut [u8]) {
 }
 
 impl Banner {
-    pub fn parse(is_japanese: bool, data: &[u8]) -> Self {
+    pub fn parse(is_japanese: bool, data: &[u8]) -> Result<Self, Error> {
         let mut magic = [0; MAGIC_LEN];
         magic.copy_from_slice(&data[..MAGIC_LEN]);
         if &magic != b"BNR1" && &magic != b"BNR2" {
@@ -105,23 +106,23 @@ impl Banner {
             }
         }
 
-        let game_name = read_string(is_japanese, &data[OFFSET_GAME_NAME..][..SHORT_TEXT_LEN]);
+        let game_name = read_string(is_japanese, &data[OFFSET_GAME_NAME..][..SHORT_TEXT_LEN])?;
         let developer_name = read_string(
             is_japanese,
             &data[OFFSET_DEVELOPER_NAME..][..SHORT_TEXT_LEN],
-        );
+        )?;
         let full_game_name =
-            read_string(is_japanese, &data[OFFSET_FULL_GAME_NAME..][..LONG_TEXT_LEN]);
+            read_string(is_japanese, &data[OFFSET_FULL_GAME_NAME..][..LONG_TEXT_LEN])?;
         let full_developer_name = read_string(
             is_japanese,
             &data[OFFSET_FULL_DEVELOPER_NAME..][..LONG_TEXT_LEN],
-        );
+        )?;
         let game_description = read_string(
             is_japanese,
             &data[OFFSET_GAME_DESCRIPTION..][..DESCRIPTION_LEN],
-        );
+        )?;
 
-        Self {
+        Ok(Self {
             magic,
             image: rgba_image,
             game_name,
@@ -129,7 +130,7 @@ impl Banner {
             full_game_name,
             full_developer_name,
             game_description,
-        }
+        })
     }
 
     pub fn to_bytes(&self, is_japanese: bool) -> [u8; BANNER_LEN] {

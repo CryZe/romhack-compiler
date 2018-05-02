@@ -1,5 +1,7 @@
 extern crate byteorder;
 extern crate encoding_rs;
+#[macro_use]
+extern crate failure;
 extern crate goblin;
 extern crate image;
 extern crate regex;
@@ -10,6 +12,7 @@ extern crate serde;
 #[macro_use]
 extern crate structopt;
 extern crate standalone_syn as syn;
+extern crate termcolor;
 extern crate toml;
 
 mod assembler;
@@ -27,25 +30,27 @@ use assembler::Instruction;
 use banner::Banner;
 use config::Config;
 use dol::DolFile;
+use failure::{err_msg, Error, ResultExt};
 use opt::Opt;
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{prelude::*, BufWriter};
 use std::process::Command;
 use structopt::StructOpt;
+use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
-fn build() {
+fn build() -> Result<(), Error> {
     let mut toml_buf = String::new();
     File::open("RomHack.toml")
-        .expect("Couldn't find \"RomHack.toml\".")
+        .context("Couldn't find \"RomHack.toml\".")?
         .read_to_string(&mut toml_buf)
-        .expect("Failed to read \"RomHack.toml\".");
+        .context("Failed to read \"RomHack.toml\".")?;
 
-    let mut config: Config = toml::from_str(&toml_buf).expect("Can't parse RomHack.toml");
+    let mut config: Config = toml::from_str(&toml_buf).context("Can't parse RomHack.toml")?;
     let base_address: syn::LitInt =
-        syn::parse_str(&config.link.base).expect("Invalid Base Address");
+        syn::parse_str(&config.link.base).context("Invalid Base Address")?;
 
-    eprintln!("Compiling...");
+    key_val_print(None, "Compiling", "");
 
     {
         let mut command = Command::new("cargo");
@@ -66,51 +71,55 @@ fn build() {
 
         let exit_code = command
             .spawn()
-            .expect("Couldn't build the project")
-            .wait()
-            .unwrap();
+            .context("Couldn't build the project")?
+            .wait()?;
 
-        assert!(exit_code.success(), "Couldn't build the project");
+        ensure!(exit_code.success(), "Couldn't build the project");
     }
 
-    eprintln!("Loading original game...");
+    key_val_print(None, "Loading", "original game");
 
     let buf = iso::reader::load_iso_buf(&config.src.iso)
-        .unwrap_or_else(|_| panic!("Couldn't find \"{}\".", config.src.iso.display()));
+        .with_context(|_| format!("Couldn't find \"{}\".", config.src.iso.display()))?;
 
-    let mut iso = iso::reader::load_iso(&buf);
+    let mut iso = iso::reader::load_iso(&buf).context("Couldn't parse the ISO")?;
 
-    eprintln!("Replacing files...");
+    key_val_print(None, "Replacing", "files");
 
     for (iso_path, actual_path) in &config.files {
         iso.resolve_and_create_path(iso_path).data = fs::read(actual_path)
-            .unwrap_or_else(|_| {
-                panic!(
+            .with_context(|_| {
+                format!(
                     "Couldn't read the file \"{}\" to store it in the ISO.",
                     actual_path.display()
                 )
-            })
+            })?
             .into();
     }
 
     let mut original_symbols = HashMap::new();
     if let Some(framework_map) = config.src.map.as_ref().and_then(|m| iso.resolve_path(m)) {
-        eprintln!("Parsing game's map...");
-        original_symbols = framework_map::parse(&framework_map.data);
+        key_val_print(None, "Parsing", "symbol map");
+        original_symbols = framework_map::parse(&framework_map.data)
+            .context("Couldn't parse the game's symbol map")?;
     } else {
-        eprintln!("No symbol map specified or it wasn't found.");
+        key_val_print(
+            Some(Color::Yellow),
+            "Warning",
+            "No symbol map specified or it wasn't found",
+        );
     }
 
-    eprintln!("Linking...");
+    key_val_print(None, "Linking", "");
 
     let mut libs_to_link = Vec::with_capacity(config.src.link.len() + 1);
     for lib_path in &config.src.link {
-        let mut file_buf = fs::read(&config.src.link[0]).unwrap_or_else(|_| {
-            panic!(
+        let mut file_buf = fs::read(&config.src.link[0]).with_context(|_| {
+            format!(
                 "Couldn't load \"{}\". Did you build the project correctly?",
                 lib_path.display()
             )
-        });
+        })?;
         libs_to_link.push(file_buf);
     }
     libs_to_link.push(linker::BASIC_LIB.to_owned());
@@ -122,7 +131,7 @@ fn build() {
         &original_symbols,
     );
 
-    eprintln!("Creating map...");
+    key_val_print(None, "Creating", "symbol map");
 
     // TODO NLL bind framework_map to local variable
     framework_map::create(
@@ -134,39 +143,46 @@ fn build() {
             .and_then(|m| iso.resolve_path(m))
             .map(|f| &*f.data),
         &linked.sections,
-    );
+    ).context("    Couldn't create the new symbol map")?;
 
     let mut instructions = Vec::new();
     if let Some(patch) = config.src.patch.take() {
-        eprintln!("Parsing patch...");
+        key_val_print(None, "Parsing", "patch");
 
         let mut asm = String::new();
         File::open(&patch)
-            .unwrap_or_else(|_| panic!("Couldn't find \"{}\".", patch.display()))
+            .with_context(|_| format!("Couldn't find \"{}\".", patch.display()))?
             .read_to_string(&mut asm)
-            .expect("Couldn't read the patch file");
+            .context("Couldn't read the patch file")?;
 
         let lines = &asm.lines().collect::<Vec<_>>();
 
         let mut assembler = Assembler::new(linked.symbol_table);
-        instructions = assembler.assemble_all_lines(lines);
+        instructions = assembler
+            .assemble_all_lines(lines)
+            .context("Couldn't assemble the patch file lines")?;
     }
 
     {
-        eprintln!("Patching game...");
+        key_val_print(None, "Patching", "game");
 
-        let main_dol = iso.main_dol_mut().expect("Dol file not found");
+        let main_dol = iso.main_dol_mut()
+            .ok_or_else(|| err_msg("Dol file not found"))?;
 
         let original = DolFile::parse(&main_dol.data);
-        main_dol.data = patch_game(original, linked.dol, &instructions).into();
+        main_dol.data = patch_game(original, linked.dol, &instructions)
+            .context("Couldn't patch the game")?
+            .into();
     }
     {
-        eprintln!("Patching banner...");
+        key_val_print(None, "Patching", "banner");
 
         if let Some(banner_file) = iso.banner_mut() {
             // TODO Not always true
             let is_japanese = true;
-            let mut banner = Banner::parse(is_japanese, &banner_file.data);
+            let mut banner =
+                Banner::parse(is_japanese, &banner_file.data).context("Couldn't parse the banner")?;
+
             if let Some(game_name) = config.info.game_name.take() {
                 banner.game_name = game_name;
             }
@@ -184,35 +200,40 @@ fn build() {
             }
             if let Some(image_path) = config.info.image.take() {
                 let image = image::open(image_path)
-                    .expect("Couldn't open banner image")
+                    .context("Couldn't open the banner replacement image")?
                     .to_rgba();
                 banner.image.copy_from_slice(&image);
             }
             banner_file.data = banner.to_bytes(is_japanese).to_vec().into();
         } else {
-            eprintln!("No banner to patch.");
+            key_val_print(Some(Color::Yellow), "Warning", "No banner to patch");
         }
     }
 
-    eprintln!("Building ISO...");
+    key_val_print(None, "Building", "ISO");
     let iso_path = &config.build.iso;
     iso::writer::write_iso(
-        BufWriter::with_capacity(4 << 20, File::create(iso_path).unwrap()),
+        BufWriter::with_capacity(
+            4 << 20,
+            File::create(iso_path).context("Couldn't create the final ISO")?,
+        ),
         &iso,
-    ).unwrap();
+    ).context("Couldn't write the final ISO")?;
+
+    Ok(())
 }
 
-fn new(name: String) {
+fn new(name: String) -> Result<(), Error> {
     let exit_code = Command::new("cargo")
         .args(&["new", "--lib", &name])
         .spawn()
-        .expect("Couldn't create the cargo project")
-        .wait()
-        .unwrap();
+        .context("Couldn't create the cargo project")?
+        .wait()?;
 
-    assert!(exit_code.success(), "Couldn't create the cargo project");
+    ensure!(exit_code.success(), "Couldn't create the cargo project");
 
-    let mut file = File::create(format!("{}/RomHack.toml", name)).unwrap();
+    let mut file =
+        File::create(format!("{}/RomHack.toml", name)).context("Couldn't create the RomHack.toml")?;
     write!(
         file,
         r#"[info]
@@ -239,9 +260,10 @@ base = "0x8040_1000" # Enter the start address of the Rom Hack's code here
 "#,
         name,
         name.replace('-', "_"),
-    ).unwrap();
+    ).context("Couldn't write the RomHack.toml")?;
 
-    let mut file = File::create(format!("{}/src/lib.rs", name)).unwrap();
+    let mut file = File::create(format!("{}/src/lib.rs", name))
+        .context("Couldn't create the lib.rs source file")?;
     write!(
         file,
         "{}",
@@ -252,9 +274,10 @@ pub mod lang_items;
 #[no_mangle]
 pub extern "C" fn init() {}
 "#
-    ).unwrap();
+    ).context("Couldn't write the lib.rs source file")?;
 
-    let mut file = File::create(format!("{}/src/lang_items.rs", name)).unwrap();
+    let mut file = File::create(format!("{}/src/lang_items.rs", name))
+        .context("Couldn't create the lang_items.rs source file")?;
     write!(
         file,
         "{}",
@@ -264,19 +287,20 @@ pub extern "C" fn panic_fmt() -> ! {
     loop {}
 }
 "#
-    ).unwrap();
+    ).context("Couldn't write the lang_items.rs source file")?;
 
-    let mut file = File::create(format!("{}/src/patch.asm", name)).unwrap();
+    let mut file = File::create(format!("{}/src/patch.asm", name))
+        .context("Couldn't create the default patch file")?;
     write!(
         file,
         r#"; You can use this to patch the game's code to call into the Rom Hack's code
 "#
-    ).unwrap();
+    ).context("Couldn't write the default patch file")?;
 
     let mut file = OpenOptions::new()
         .append(true)
         .open(format!("{}/Cargo.toml", name))
-        .unwrap();
+        .context("Couldn't open the Cargo.toml")?;
     write!(
         file,
         r#"
@@ -287,15 +311,72 @@ crate-type = ["staticlib"]
 panic = "abort"
 lto = true
 "#
-    ).unwrap();
+    ).context("Couldn't write into the Cargo.toml")?;
+
+    Ok(())
 }
 
-fn main() {
+fn try_main() -> Result<(), Error> {
     let opt = Opt::from_args();
 
     match opt {
-        Opt::Build {} => build(),
-        Opt::New { name } => new(name),
+        Opt::Build {} => build().context("Couldn't build the Rom Hack")?,
+        Opt::New { name } => new(name).context("Couldn't create the Rom Hack project")?,
+    }
+
+    Ok(())
+}
+
+fn key_val_print(color: Option<Color>, key: &str, val: &str) {
+    let bufwtr = BufferWriter::stderr(ColorChoice::Always);
+    let mut buffer = bufwtr.buffer();
+
+    buffer
+        .set_color(
+            ColorSpec::new()
+                .set_fg(Some(color.unwrap_or(Color::Green)))
+                .set_bold(true),
+        )
+        .ok();
+    write!(&mut buffer, "{:>12}", key).ok();
+
+    buffer.reset().ok();
+    writeln!(&mut buffer, " {}", val).ok();
+    bufwtr.print(&buffer).ok();
+}
+
+fn main() {
+    if let Err(e) = try_main() {
+        eprintln!();
+
+        let mut bufwtr = BufferWriter::stderr(ColorChoice::Always);
+        let mut buffer = bufwtr.buffer();
+        let mut color = ColorSpec::new();
+        color.set_fg(Some(Color::Red)).set_bold(true);
+
+        buffer
+            .set_color(&color)
+            .expect("Error while printing error");
+        write!(&mut buffer, "Error").expect("Error while printing error");
+
+        buffer.reset().expect("Error while printing error");
+        buffer
+            .set_color(ColorSpec::new().set_bold(true))
+            .expect("Error while printing error");
+        writeln!(&mut buffer, ": {}", e).expect("Error while printing error");
+
+        for cause in e.causes().skip(1) {
+            buffer
+                .set_color(&color)
+                .expect("Error while printing error");
+            write!(&mut buffer, "   Caused by").expect("Error while printing error");
+
+            buffer.reset().expect("Error while printing error");
+            writeln!(&mut buffer, " {}", cause).expect("Error while printing error");
+        }
+        bufwtr.print(&buffer).expect("Error while printing error");
+    } else {
+        key_val_print(None, "Finished", "Rom Hack");
     }
 }
 
@@ -303,9 +384,11 @@ fn patch_game(
     mut original: DolFile,
     intermediate: DolFile,
     instructions: &[Instruction],
-) -> Vec<u8> {
+) -> Result<Vec<u8>, Error> {
     original.append(intermediate);
-    original.patch(instructions);
+    original
+        .patch(instructions)
+        .context("Couldn't patch the DOL")?;
 
-    original.to_bytes()
+    Ok(original.to_bytes())
 }

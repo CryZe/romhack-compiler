@@ -42,7 +42,6 @@ impl<'a> Node<'a> {
 
 #[derive(Debug)]
 pub struct Directory<'a> {
-    pub id: u16,
     pub name: &'a str,
     pub children: Vec<Node<'a>>,
 }
@@ -50,7 +49,6 @@ pub struct Directory<'a> {
 impl<'a> Directory<'a> {
     pub fn new(name: &'a str) -> Directory<'a> {
         Self {
-            id: 0,
             name,
             children: Vec::new(),
         }
@@ -134,7 +132,6 @@ impl<'a> Directory<'a> {
 }
 
 pub struct File<'a> {
-    pub id: u16,
     pub name: &'a str,
     pub data: Cow<'a, [u8]>,
 }
@@ -142,7 +139,6 @@ pub struct File<'a> {
 impl<'a> File<'a> {
     pub fn new<A: Into<Cow<'a, [u8]>>>(name: &'a str, data: A) -> File<'a> {
         Self {
-            id: 0,
             name,
             data: data.into(),
         }
