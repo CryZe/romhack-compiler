@@ -3,6 +3,7 @@ use dol::{DolFile, Section};
 use failure::Error;
 use goblin::archive::{Archive, Member};
 use goblin::elf::{section_header, sym, Elf, Reloc};
+use key_val_print;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub static BASIC_LIB: &[u8] = include_bytes!("../resources/libbasic.a");
@@ -382,11 +383,15 @@ fn relocate_and_collect<'a>(
                             }
                             unreachable!()
                         } else {
-                            println!(
-                                "Using prelinked symbol {}, at addr: {:08x}",
-                                archive_symbol_name,
-                                (located_section_address as u32)
-                                    .wrapping_add(reloc.r_offset as u32)
+                            key_val_print(
+                                None,
+                                "Game Symbol",
+                                &format!(
+                                    "{} at addr: {:08x}",
+                                    archive_symbol_name,
+                                    (located_section_address as u32)
+                                        .wrapping_add(reloc.r_offset as u32)
+                                ),
                             );
                             return prelinked_symbols[archive_symbol_name];
                         }
@@ -398,7 +403,7 @@ fn relocate_and_collect<'a>(
                 // S -> Sym.getVA(0)
                 let symbol_address = section_address.wrapping_add(symbol.st_value as u32);
                 // A -> Addend
-                let a = reloc.r_addend as u32;
+                let a = reloc.r_addend.unwrap_or(0) as u32;
                 // P -> getVA(Rel.Offset)
                 // getVa(Offset) => (Out ? Out->Addr : 0) + getOffset(Offset)
                 let p = (located_section_address as u32).wrapping_add(reloc.r_offset as u32);

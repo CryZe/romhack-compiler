@@ -268,22 +268,23 @@ base = "0x8040_1000" # Enter the start address of the Rom Hack's code here
         file,
         "{}",
         r#"#![no_std]
-#![feature(lang_items)]
-pub mod lang_items;
+#![feature(panic_implementation)]
+pub mod panic_impl;
 
 #[no_mangle]
 pub extern "C" fn init() {}
 "#
     ).context("Couldn't write the lib.rs source file")?;
 
-    let mut file = File::create(format!("{}/src/lang_items.rs", name))
-        .context("Couldn't create the lang_items.rs source file")?;
+    let mut file = File::create(format!("{}/src/panic_impl.rs", name))
+        .context("Couldn't create the panic_impl.rs source file")?;
     write!(
         file,
         "{}",
-        r#"#[cfg_attr(any(target_arch = "powerpc", target_arch = "wasm32"), lang = "panic_fmt")]
+        r#"#[cfg(any(target_arch = "powerpc", target_arch = "wasm32"))]
+#[panic_implementation]
 #[no_mangle]
-pub extern "C" fn panic_fmt() -> ! {
+pub fn panic(_info: &::core::panic::PanicInfo) -> ! {
     loop {}
 }
 "#
