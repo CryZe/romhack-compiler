@@ -344,14 +344,14 @@ fn relocate_and_collect<'a>(
                 let symbol_index = reloc.r_sym as usize;
                 let symbol = elf.syms.get(symbol_index).unwrap();
                 let symbol_section_index = symbol.st_shndx as usize;
-                let section_address = layout
+                let (section_address, symbol_offset) = layout
                     .lookup
                     .get(&LookupKey {
                         archive_index,
                         member_name,
                         section_index: symbol_section_index,
                     })
-                    .map(|&index| layout.sections[index].address)
+                    .map(|&index| (layout.sections[index].address, symbol.st_value as u32))
                     .unwrap_or_else(|| {
                         let name_index = symbol.st_name;
                         let archive_symbol_name = elf.strtab.get(name_index).unwrap().unwrap();
@@ -378,7 +378,10 @@ fn relocate_and_collect<'a>(
                                                                                   member_name,
                                                                                   section_index,
                                                                               }];
-                                    return layout.sections[located_section_index].address;
+                                    return (
+                                        layout.sections[located_section_index].address,
+                                        symbol.st_value as u32,
+                                    );
                                 }
                             }
                             unreachable!()
@@ -393,7 +396,7 @@ fn relocate_and_collect<'a>(
                                         .wrapping_add(reloc.r_offset as u32)
                                 ),
                             );
-                            return prelinked_symbols[archive_symbol_name];
+                            return (prelinked_symbols[archive_symbol_name], 0);
                         }
                     });
 
@@ -401,7 +404,7 @@ fn relocate_and_collect<'a>(
                 // https://github.com/llvm-mirror/lld/blob/0e7ca58c010ce93e66ce716923b0570c91248b7e/ELF/InputSection.cpp#L641
 
                 // S -> Sym.getVA(0)
-                let symbol_address = section_address.wrapping_add(symbol.st_value as u32);
+                let symbol_address = section_address.wrapping_add(symbol_offset);
                 // A -> Addend
                 let a = reloc.r_addend.unwrap_or(0) as u32;
                 // P -> getVA(Rel.Offset)
@@ -533,7 +536,8 @@ pub fn link<'a>(
                 let section_index = s.section_info.section_index;
                 let elf = &parsed_elfs[&(s.section_info.archive_index, s.section_info.member_name)];
                 let section = &elf.section_headers[section_index];
-                let section_name = elf.shdr_strtab
+                let section_name = elf
+                    .shdr_strtab
                     .get(section.sh_name as usize)
                     .unwrap()
                     .unwrap();

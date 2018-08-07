@@ -166,7 +166,8 @@ fn build() -> Result<(), Error> {
     {
         key_val_print(None, "Patching", "game");
 
-        let main_dol = iso.main_dol_mut()
+        let main_dol = iso
+            .main_dol_mut()
             .ok_or_else(|| err_msg("Dol file not found"))?;
 
         let original = DolFile::parse(&main_dol.data);
@@ -366,7 +367,7 @@ fn main() {
             .expect("Error while printing error");
         writeln!(&mut buffer, ": {}", e).expect("Error while printing error");
 
-        for cause in e.causes().skip(1) {
+        for cause in e.iter_chain().skip(1) {
             buffer
                 .set_color(&color)
                 .expect("Error while printing error");
