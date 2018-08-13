@@ -13,10 +13,10 @@ pub struct Config {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct Src {
     pub src: Option<PathBuf>,
     pub iso: PathBuf,
-    pub link: Vec<PathBuf>,
     pub patch: Option<PathBuf>,
     pub map: Option<String>,
 }
@@ -42,4 +42,5 @@ pub struct Build {
 pub struct Link {
     pub entries: Vec<String>,
     pub base: String,
+    pub libs: Option<Vec<PathBuf>>,
 }

@@ -150,7 +150,8 @@ impl DolFile {
 
     pub fn patch(&mut self, instructions: &[Instruction]) -> Result<(), Error> {
         for instruction in instructions {
-            let section = self.text_sections
+            let section = self
+                .text_sections
                 .iter_mut()
                 .chain(self.data_sections.iter_mut())
                 .find(|d| {

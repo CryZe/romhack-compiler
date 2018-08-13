@@ -8,7 +8,8 @@ pub fn write_iso<W>(mut writer: W, root: &Directory) -> Result<(), Error>
 where
     W: Write + Seek,
 {
-    let (sys_index, sys_dir) = root.children
+    let (sys_index, sys_dir) = root
+        .children
         .iter()
         .enumerate()
         .filter_map(|(i, c)| c.as_directory().map(|d| (i, d)))
@@ -56,7 +57,8 @@ where
     }
 
     let mut fst_len = 12;
-    for (_, node) in root.children
+    for (_, node) in root
+        .children
         .iter()
         .enumerate()
         .filter(|&(i, _)| i != sys_index)
@@ -79,7 +81,8 @@ where
     let mut output_fst = vec![root_fst];
     let mut fst_name_bank = Vec::new();
 
-    for (_, node) in root.children
+    for (_, node) in root
+        .children
         .iter()
         .enumerate()
         .filter(|&(i, _)| i != sys_index)

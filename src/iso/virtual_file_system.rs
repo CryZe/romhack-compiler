@@ -55,7 +55,8 @@ impl<'a> Directory<'a> {
     }
 
     pub fn main_dol_mut(&mut self) -> Option<&mut File<'a>> {
-        let sys_dir = self.children
+        let sys_dir = self
+            .children
             .iter_mut()
             .filter_map(|c| c.as_directory_mut())
             .find(|d| d.name == "&&systemdata")?;
@@ -68,7 +69,8 @@ impl<'a> Directory<'a> {
     }
 
     pub fn banner_mut(&mut self) -> Option<&mut File<'a>> {
-        let banner = self.children
+        let banner = self
+            .children
             .iter_mut()
             .filter_map(|c| c.as_file_mut())
             .find(|f| f.name == "opening.bnr")?;
@@ -82,12 +84,14 @@ impl<'a> Directory<'a> {
         while let Some(segment) = segments.next() {
             if segments.peek().is_some() {
                 // Must be a folder
-                dir = dir.children
+                dir = dir
+                    .children
                     .iter()
                     .filter_map(|c| c.as_directory())
                     .find(|d| d.name == segment)?;
             } else {
-                return dir.children
+                return dir
+                    .children
                     .iter()
                     .filter_map(|c| c.as_file())
                     .find(|f| f.name == segment);
@@ -100,7 +104,8 @@ impl<'a> Directory<'a> {
     pub fn resolve_and_create_path(&mut self, path: &'a str) -> &mut File<'a> {
         let mut splits = path.splitn(2, '/');
         if let (Some(folder), Some(sub_path)) = (splits.next(), splits.next()) {
-            if !self.children
+            if !self
+                .children
                 .iter_mut()
                 .filter_map(|c| c.as_directory_mut())
                 .any(|d| d.name == folder)
@@ -115,7 +120,8 @@ impl<'a> Directory<'a> {
                 .unwrap()
                 .resolve_and_create_path(sub_path)
         } else {
-            if !self.children
+            if !self
+                .children
                 .iter_mut()
                 .filter_map(|c| c.as_file_mut())
                 .any(|f| f.name == path)

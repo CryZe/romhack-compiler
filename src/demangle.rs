@@ -100,7 +100,8 @@ impl<'a> Display for Type<'a> {
 fn parse_count(text: &str) -> Result<(usize, &str), Cow<'static, str>> {
     let mut text = text;
 
-    let count = text.chars()
+    let count = text
+        .chars()
         .take_while(|c| c.is_digit(10))
         .collect::<String>();
     text = &text[count.len()..];

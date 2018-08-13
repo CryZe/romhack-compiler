@@ -35,11 +35,13 @@ use opt::Opt;
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{prelude::*, BufWriter};
+use std::iter;
+use std::path::PathBuf;
 use std::process::Command;
 use structopt::StructOpt;
 use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
-fn build() -> Result<(), Error> {
+fn build(debug: bool) -> Result<(), Error> {
     let mut toml_buf = String::new();
     File::open("RomHack.toml")
         .context("Couldn't find \"RomHack.toml\".")?
@@ -55,16 +57,13 @@ fn build() -> Result<(), Error> {
     {
         let mut command = Command::new("cargo");
         command
-            .args(&[
-                "build",
-                "--release",
-                "--target",
-                "powerpc-unknown-linux-gnu",
-            ])
-            .env(
-                "RUSTFLAGS",
-                "-C target-feature=+msync,+fres,+frsqrte -C opt-level=s",
-            );
+            .args(&["build", "--target", "powerpc-unknown-linux-gnu"])
+            .env("RUSTFLAGS", "-C target-feature=+msync,+fres,+frsqrte");
+
+        if !debug {
+            command.arg("--release");
+        }
+
         if let Some(ref src_dir) = config.src.src {
             command.current_dir(src_dir);
         }
@@ -112,9 +111,12 @@ fn build() -> Result<(), Error> {
 
     key_val_print(None, "Linking", "");
 
-    let mut libs_to_link = Vec::with_capacity(config.src.link.len() + 1);
-    for lib_path in &config.src.link {
-        let mut file_buf = fs::read(&config.src.link[0]).with_context(|_| {
+    let mut libs_to_link = Vec::with_capacity(config.link.libs.as_ref().map_or(0, |x| x.len()) + 2);
+
+    let lib = find_compiled_library(debug).context("Couldn't find the compiled static library")?;
+
+    for lib_path in iter::once(&lib).chain(config.link.libs.iter().flat_map(|x| x)) {
+        let mut file_buf = fs::read(lib_path).with_context(|_| {
             format!(
                 "Couldn't load \"{}\". Did you build the project correctly?",
                 lib_path.display()
@@ -122,6 +124,7 @@ fn build() -> Result<(), Error> {
         })?;
         libs_to_link.push(file_buf);
     }
+
     libs_to_link.push(linker::BASIC_LIB.to_owned());
 
     let linked = linker::link(
@@ -157,7 +160,7 @@ fn build() -> Result<(), Error> {
 
         let lines = &asm.lines().collect::<Vec<_>>();
 
-        let mut assembler = Assembler::new(linked.symbol_table);
+        let mut assembler = Assembler::new(linked.symbol_table, &original_symbols);
         instructions = assembler
             .assemble_all_lines(lines)
             .context("Couldn't assemble the patch file lines")?;
@@ -242,7 +245,6 @@ game-name = "{0}"
 
 [src]
 iso = "game.iso" # Provide the path of the game's ISO
-link = ["target/powerpc-unknown-linux-gnu/release/lib{1}.a"]
 patch = "src/patch.asm"
 # Optionally specify the game's symbol map
 # map = "maps/framework.map"
@@ -259,7 +261,6 @@ iso = "target/{0}.iso"
 entries = ["init"] # Enter the exported function names here
 base = "0x8040_1000" # Enter the start address of the Rom Hack's code here
 "#,
-        name,
         name.replace('-', "_"),
     ).context("Couldn't write the RomHack.toml")?;
 
@@ -309,6 +310,10 @@ pub fn panic(_info: &::core::panic::PanicInfo) -> ! {
 [lib]
 crate-type = ["staticlib"]
 
+[profile.dev]
+panic = "abort"
+opt-level = 1
+
 [profile.release]
 panic = "abort"
 lto = true
@@ -322,7 +327,7 @@ fn try_main() -> Result<(), Error> {
     let opt = Opt::from_args();
 
     match opt {
-        Opt::Build {} => build().context("Couldn't build the Rom Hack")?,
+        Opt::Build { debug } => build(debug).context("Couldn't build the Rom Hack")?,
         Opt::New { name } => new(name).context("Couldn't create the Rom Hack project")?,
     }
 
@@ -393,4 +398,24 @@ fn patch_game(
         .context("Couldn't patch the DOL")?;
 
     Ok(original.to_bytes())
+}
+
+fn find_compiled_library(debug: bool) -> Result<PathBuf, Error> {
+    use std::iter::FromIterator;
+
+    let dir = fs::read_dir(PathBuf::from_iter(&[
+        "target",
+        "powerpc-unknown-linux-gnu",
+        if debug { "debug" } else { "release" },
+    ])).context("Couldn't list entries of the compiler's target directory")?;
+
+    for entry in dir {
+        let entry = entry.context("Couldn't list an entry of the compiler's target directory")?;
+        let path = entry.path();
+        if path.extension() == Some("a".as_ref()) {
+            return Ok(path);
+        }
+    }
+
+    bail!("None of the files in the compiler's target directory match *.a")
 }
