@@ -14,8 +14,12 @@ pub fn create(
     original: Option<&[u8]>,
     sections: &[LinkedSection],
 ) -> Result<(), Error> {
-    let mut file =
-        BufWriter::new(File::create(&config.build.map).context("Couldn't create the symbol map")?);
+    let path = match &config.build.map {
+        Some(path) => path,
+        None => return Ok(()),
+    };
+
+    let mut file = BufWriter::new(File::create(path).context("Couldn't create the symbol map")?);
 
     writeln!(file, ".text section layout")?;
 

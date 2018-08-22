@@ -1,18 +1,18 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Config {
-    pub src: Src,
-    pub build: Build,
-    pub link: Link,
     #[serde(default)]
     pub info: Info,
+    pub src: Src,
     #[serde(default)]
     pub files: HashMap<String, PathBuf>,
+    pub build: Build,
+    pub link: Link,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct Src {
     pub src: Option<PathBuf>,
@@ -21,7 +21,7 @@ pub struct Src {
     pub map: Option<String>,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Serialize, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct Info {
     pub game_name: Option<String>,
@@ -32,13 +32,13 @@ pub struct Info {
     pub image: Option<PathBuf>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Default, Debug)]
 pub struct Build {
-    pub map: PathBuf,
+    pub map: Option<PathBuf>,
     pub iso: PathBuf,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct Link {
     pub entries: Vec<String>,
     pub base: String,
