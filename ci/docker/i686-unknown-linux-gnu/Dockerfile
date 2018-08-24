@@ -1,6 +1,7 @@
 FROM ubuntu:14.04
 
-RUN apt-get update && \
+RUN dpkg --add-architecture i386 && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     ca-certificates \
     cmake3 \
