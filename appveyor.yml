@@ -43,6 +43,7 @@ test_script:
     )
 
 before_deploy:
+  - cargo clean
   - cargo build -p romhack-patcher --target %TARGET% --release
   - ps: ci\before_deploy.ps1
 

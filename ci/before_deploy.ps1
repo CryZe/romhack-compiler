@@ -11,6 +11,7 @@ Set-Location $STAGE
 $ZIP = "$SRC_DIR\$($Env:CRATE_NAME)-$($Env:APPVEYOR_REPO_TAG_NAME)-$($Env:TARGET).zip"
 
 Copy-Item "$SRC_DIR\target\$($Env:TARGET)\release\romhack-patcher.exe" '.\'
+Get-ChildItem -Path "$SRC_DIR\target\$($Env:TARGET)\release\build" "libui.dll" -Recurse | Select -ExpandProperty FullName | Copy-Item -Destination '.\'
 
 7z a "$ZIP" *
 

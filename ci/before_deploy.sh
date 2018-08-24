@@ -17,9 +17,17 @@ main() {
 
     test -f Cargo.lock || cargo generate-lockfile
 
-    cross build -p romhack-patcher --target $TARGET --release
+    cargo clean
+    cross rustc -p romhack-patcher --target $TARGET --release -- -C link-arg=-Wl,-rpath,'$ORIGIN'
 
     cp target/$TARGET/release/romhack-patcher $stage/
+    case $TRAVIS_OS_NAME in
+        linux)
+            cp $(find target/release/build/ -type f -iname 'libui.so*') $stage/.
+        osx)
+            cp $(find target/release/build/ -type f -iname 'libui.dylib*') $stage/.
+            ;;
+    esac
 
     cd $stage
     tar czf $src/$CRATE_NAME-$TRAVIS_TAG-$TARGET.tar.gz *

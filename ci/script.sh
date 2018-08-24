@@ -10,7 +10,7 @@ image = "cryze/x86_64-unknown-linux-gnu-romhack-compiler"
 image = "cryze/i686-unknown-linux-gnu-romhack-compiler"
 EOF
 
-    cross build -p romhack-patcher --target $TARGET --release
+    cross rustc -p romhack-patcher --target $TARGET --release -- -C link-arg=-Wl,-rpath,'$ORIGIN'
 
     if [ ! -z $DISABLE_TESTS ]; then
         return
