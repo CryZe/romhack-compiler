@@ -2,8 +2,12 @@
 
 set -ex
 
-# TODO This is the "test phase", tweak it as you see fit
 main() {
+    cat > Cross.toml <<EOF
+[target.x86_64-unknown-linux-gnu]
+image = "cryze/x86_64-unknown-linux-gnu-romhack-compiler"
+EOF
+
     cross build -p romhack-patcher --target $TARGET
     cross build -p romhack-patcher --target $TARGET --release
 
