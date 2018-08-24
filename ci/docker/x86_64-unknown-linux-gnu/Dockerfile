@@ -10,5 +10,5 @@ RUN apt-get update && \
     pkg-config \
     git-all
 
-COPY xargo.sh /
+COPY ../xargo.sh /
 RUN bash /xargo.sh
