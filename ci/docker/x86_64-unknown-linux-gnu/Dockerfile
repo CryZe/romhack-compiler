@@ -3,12 +3,12 @@ FROM ubuntu:14.04
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     ca-certificates \
-    cmake \
+    cmake3 \
     g++-multilib \
     libc6-dev \
     make \
     pkg-config \
     git-all
 
-COPY ../xargo.sh /
+COPY xargo.sh /
 RUN bash /xargo.sh
