@@ -8,16 +8,16 @@ environment:
 
   matrix:
     # MinGW
-    - TARGET: i686-pc-windows-gnu
-    - TARGET: x86_64-pc-windows-gnu
+    # - TARGET: i686-pc-windows-gnu
+    # - TARGET: x86_64-pc-windows-gnu
 
     # MSVC
     - TARGET: i686-pc-windows-msvc
     - TARGET: x86_64-pc-windows-msvc
 
     # Testing other channels
-    - TARGET: x86_64-pc-windows-gnu
-      RUST_VERSION: nightly
+    # - TARGET: x86_64-pc-windows-gnu
+    #   RUST_VERSION: nightly
     - TARGET: x86_64-pc-windows-msvc
       RUST_VERSION: nightly
 
@@ -37,10 +37,7 @@ install:
 test_script:
   # we don't run the "test phase" when doing deploys
   - if [%APPVEYOR_REPO_TAG%]==[false] (
-      cargo build -p romhack-patcher --target %TARGET% &&
-      cargo build -p romhack-patcher --target %TARGET% --release &&
-      cargo test -p romhack-patcher --target %TARGET% &&
-      cargo test -p romhack-patcher --target %TARGET% --release
+      cargo build -p romhack-patcher --target %TARGET% --release
     )
 
 before_deploy:
