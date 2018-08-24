@@ -7,7 +7,7 @@ main() {
 [target.x86_64-unknown-linux-gnu]
 image = "cryze/x86_64-unknown-linux-gnu-romhack-compiler"
 [target.i686-unknown-linux-gnu]
-image = "cryze/x86_64-unknown-linux-gnu-romhack-compiler"
+image = "cryze/i686-unknown-linux-gnu-romhack-compiler"
 EOF
 
     cross build -p romhack-patcher --target $TARGET --release
