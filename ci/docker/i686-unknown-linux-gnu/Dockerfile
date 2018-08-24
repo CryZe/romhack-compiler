@@ -10,6 +10,7 @@ RUN dpkg --add-architecture i386 && \
     make \
     pkg-config \
     git-all \
+    libgtk-3-dev \
     libgtk-3-dev:i386
 
 COPY xargo.sh /
