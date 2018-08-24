@@ -8,7 +8,8 @@ RUN apt-get update && \
     libc6-dev \
     make \
     pkg-config \
-    git-all
+    git-all \
+    libgtk-3-dev
 
 COPY xargo.sh /
 RUN bash /xargo.sh
