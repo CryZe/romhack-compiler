@@ -1,0 +1,12 @@
+[package]
+name = "romhack-wasm"
+version = "0.1.0"
+authors = ["Christopher Serr <christopher.serr@gmail.com>"]
+
+[lib]
+name = "romhack"
+crate-type = ["cdylib"]
+
+[dependencies]
+romhack-backend = { path = "../backend" }
+failure = "0.1.2"

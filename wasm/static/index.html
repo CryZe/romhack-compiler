@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <title>GameCube ISO Patcher</title>
+    <script type="text/javascript" src="run.js"></script>
+    <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+
+<body>
+    <fieldset>
+        <legend>GameCube ISO Patcher</legend>
+        <div>
+            <label for="patch">Patch:</label>
+            <input type="file" id="patch" name="patch" />
+        </div>
+        <div>
+            <label for="iso">ISO:</label>
+            <input type="file" id="iso" name="iso" />
+        </div>
+
+        <button onclick="run()">Patch</button>
+    </fieldset>
+
+    <fieldset class="log">
+        <legend>Log</legend>
+        <div id="log" />
+    </fieldset>
+</body>
+
+</html>

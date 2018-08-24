@@ -1,0 +1,8 @@
+[package]
+name = "romhack-patcher"
+version = "0.1.0"
+authors = ["Christopher Serr <christopher.serr@gmail.com>"]
+
+[dependencies]
+iui = "0.3.0"
+romhack-backend = { path = "../backend" }

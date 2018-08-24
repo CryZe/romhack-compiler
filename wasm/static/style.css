@@ -1,0 +1,84 @@
+legend {
+    padding: 3px 6px;
+    font-weight: bold;
+    font-size: 1.5em;
+}
+
+.output {
+    font: 1rem sans-serif;
+}
+
+label {
+    display: block;
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+body {
+    background-color: #202020;
+    color: #EEEEEE;
+    font-family: 'fira', sans-serif;
+    font-size: 1rem;
+}
+
+fieldset div {
+    margin-top: 0.2rem;
+    margin-bottom: 1.0rem;
+}
+
+fieldset {
+    border-color: hsl(0, 0%, 50%);
+    width: 800px;
+}
+
+fieldset.log {
+    width: 800px;
+}
+
+div#log {
+    height: 500px;
+    overflow-y: auto;
+}
+
+div#log span.left {
+    width: 130px;
+    display: inline-block;
+    text-align: right;
+    margin-right: 10px;
+    font-weight: bold;
+}
+
+div#log span {
+    font-weight: bold;
+}
+
+span.error {
+    color: #f14c4c;
+}
+
+span.warning {
+    color: #e5e510;
+}
+
+span.normal {
+    color: #23d18b;
+}
+
+button {
+    margin-bottom: 5px;
+    margin-top: 10px;
+    padding: 5px;
+    width: 100px;
+    background: linear-gradient(hsl(0, 0%, 11%) 0%, hsl(0, 0%, 7%) 100%);
+    color: #eee;
+    cursor: pointer;
+    font-size: 20px;
+    border-width: 1px;
+    border-style: solid;
+    border-color: hsl(0, 0%, 50%);
+    border-image: initial;
+    border-radius: 5px;
+    font-weight: bold;
+    font-family: 'fira', sans-serif;
+}
+

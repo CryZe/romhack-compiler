@@ -3,10 +3,10 @@ use dol::{DolFile, Section};
 use failure::Error;
 use goblin::archive::{Archive, Member};
 use goblin::elf::{section_header, sym, Elf, Reloc};
-use key_val_print;
+use key_val_print::KeyValPrint;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-pub static BASIC_LIB: &[u8] = include_bytes!("../resources/libbasic.a");
+pub static BASIC_LIB: &[u8] = include_bytes!("../../resources/libbasic.a");
 
 fn symbols_referenced_in_section<F>(section_index: usize, elf: &Elf, mut f: F)
 where
@@ -25,8 +25,7 @@ fn reloc_table_for_section<'a>(section_index: usize, elf: &'a Elf) -> Option<&'a
         .iter()
         .find(|&&(reloc_index, _)| {
             section_index == elf.section_headers[reloc_index as usize].sh_info as usize
-        })
-        .map(|&(_, ref r)| &**r)
+        }).map(|&(_, ref r)| &**r)
 }
 
 fn function_symbols_for_section<'a>(
@@ -288,8 +287,7 @@ fn create_layout<'a>(
             address += section.sh_size as u32;
 
             val
-        })
-        .collect();
+        }).collect();
 
     Layout {
         sections,
@@ -299,7 +297,8 @@ fn create_layout<'a>(
     }
 }
 
-fn relocate_and_collect<'a>(
+fn relocate_and_collect<'a, P: KeyValPrint>(
+    printer: &P,
     layout: &Layout<'a>,
     archives: &'a [Option<Archive<'a>>],
     archive_bufs: &'a [Vec<u8>],
@@ -350,8 +349,7 @@ fn relocate_and_collect<'a>(
                         archive_index,
                         member_name,
                         section_index: symbol_section_index,
-                    })
-                    .map(|&index| (layout.sections[index].address, symbol.st_value as u32))
+                    }).map(|&index| (layout.sections[index].address, symbol.st_value as u32))
                     .unwrap_or_else(|| {
                         let name_index = symbol.st_name;
                         let archive_symbol_name = elf.strtab.get(name_index).unwrap().unwrap();
@@ -386,7 +384,7 @@ fn relocate_and_collect<'a>(
                             }
                             unreachable!()
                         } else {
-                            key_val_print(
+                            printer.print(
                                 None,
                                 "Game Symbol",
                                 &format!(
@@ -477,7 +475,8 @@ fn relocate_and_collect<'a>(
     (text_section, data_section)
 }
 
-pub fn link<'a>(
+pub fn link<'a, P: KeyValPrint>(
+    printer: &P,
     archive_bufs: &'a [Vec<u8>],
     base_address: u32,
     mut global_symbols_to_visit: Vec<String>,
@@ -505,6 +504,7 @@ pub fn link<'a>(
     let layout = create_layout(base_address, visited_sections, &parsed_elfs);
 
     let (text_section, data_section) = relocate_and_collect(
+        printer,
         &layout,
         &archives,
         &archive_bufs,
@@ -557,7 +557,6 @@ pub fn link<'a>(
                     kind: s.section_info.kind,
                     sym_offset,
                 }
-            })
-            .collect(),
+            }).collect(),
     })
 }
