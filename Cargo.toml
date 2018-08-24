@@ -17,5 +17,5 @@ panic = "abort"
 lto = true
 
 [patch.crates-io]
-miniz_oxide_c_api = { git = "https://github.com/Frommi/miniz_oxide" }
+miniz_oxide_c_api = { git = "https://github.com/CryZe/miniz_oxide", rev = "b1eade664441a89c77a4b594d9d979170b1c9da9" }
 flate2 = { git = "https://github.com/eminence/flate2-rs", rev = "be78c5a693a275452c71c7d26d369332629e8fb7" }
