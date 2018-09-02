@@ -412,12 +412,15 @@ fn relocate_and_collect<'a, P: KeyValPrint>(
                 // The enum can be found here:
                 // https://github.com/vocho/openqnx/blob/master/trunk/lib/elf/public/sys/elf_ppc.h#L50
                 const R_PPC_ADDR32: u32 = 1;
+                const R_PPC_ADDR16_LO: u32 = 4;
+                const R_PPC_ADDR16_HI: u32 = 5;
+                const R_PPC_ADDR16_HA: u32 = 6;
                 const R_PPC_REL24: u32 = 10;
                 const R_PPC_PLTREL24: u32 = 18;
                 const R_PPC_REL32: u32 = 26;
 
                 let value = match reloc.r_type {
-                    R_PPC_ADDR32 => {
+                    R_PPC_ADDR32 | R_PPC_ADDR16_HA | R_PPC_ADDR16_HI | R_PPC_ADDR16_LO => {
                         // R_ABS -> S + A -> Sym.getVA(A)
                         symbol_address.wrapping_add(a)
                     }
@@ -441,6 +444,9 @@ fn relocate_and_collect<'a, P: KeyValPrint>(
                 // Based on LLD:
                 // https://github.com/llvm-mirror/lld/blob/6d2b0b2fa1005a104120a93bad32f487377e989b/ELF/Arch/PPC.cpp#L49
                 match reloc.r_type {
+                    R_PPC_ADDR16_HA => BE::write_u16(instruction, (value.wrapping_add(0x8000) >> 16) as u16),
+                    R_PPC_ADDR16_HI => BE::write_u16(instruction, (value >> 16) as u16),
+                    R_PPC_ADDR16_LO => BE::write_u16(instruction, value as u16),
                     R_PPC_ADDR32 | R_PPC_REL32 => BE::write_u32(instruction, value),
                     R_PPC_PLTREL24 | R_PPC_REL24 => {
                         let val = BE::read_u32(instruction) | (value & 0x3FFFFFC);
