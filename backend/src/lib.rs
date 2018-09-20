@@ -440,26 +440,26 @@ base = "0x8040_1000" # Enter the start address of the Rom Hack's code here
         file,
         "{}",
         r#"#![no_std]
-#![feature(panic_implementation)]
-pub mod panic_impl;
+
+pub mod panic;
 
 #[no_mangle]
 pub extern "C" fn init() {}
 "#
     ).context("Couldn't write the lib.rs source file")?;
 
-    let mut file = File::create(format!("{}/src/panic_impl.rs", name))
-        .context("Couldn't create the panic_impl.rs source file")?;
+    let mut file = File::create(format!("{}/src/panic.rs", name))
+        .context("Couldn't create the panic.rs source file")?;
     write!(
         file,
         "{}",
         r#"#[cfg(any(target_arch = "powerpc", target_arch = "wasm32"))]
-#[panic_implementation]
+#[panic_handler]
 pub fn panic(_info: &::core::panic::PanicInfo) -> ! {
     loop {}
 }
 "#
-    ).context("Couldn't write the lang_items.rs source file")?;
+    ).context("Couldn't write the panic.rs source file")?;
 
     let mut file = File::create(format!("{}/src/patch.asm", name))
         .context("Couldn't create the default patch file")?;
@@ -475,7 +475,11 @@ pub fn panic(_info: &::core::panic::PanicInfo) -> ! {
         .context("Couldn't open the Cargo.toml")?;
     write!(
         file,
-        r#"
+        "{}",
+        r#"# Comment this in if you want to use the gcn crate in your rom hack.
+# It requires the operating system symbols to be resolved via a map.
+# gcn = { git = "https://github.com/CryZe/gcn", features = ["panic"] }
+
 [lib]
 crate-type = ["staticlib"]
 
@@ -488,6 +492,15 @@ panic = "abort"
 lto = true
 "#
     ).context("Couldn't write into the Cargo.toml")?;
+
+    let mut file = File::create(format!("{}/.gitignore", name))
+        .context("Couldn't create the gitignore file")?;
+    write!(
+        file,
+        r#"/target
+**/*.rs.bk
+"#
+    ).context("Couldn't write the gitignore file")?;
 
     Ok(())
 }
